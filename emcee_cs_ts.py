@@ -45,36 +45,31 @@ ene_index = 118
 energy_keV = x*evere/1e3 #energies in keV
 #print(energy_keV[110:160])
 print("The energy chosen = ", energy_keV[ene_index], " keV")
-param_names = ["mass","rad","incl","theta"]
-params_true = [1.4,12.0,40.0,60.0]
+param_names = ["mass","rad","incl","theta","rho"]
+#params_true = [1.4,12.0,40.0,60.0,1.0]
+params_true = [1.4,12.0,40.0,60.0,10.0]
+#params_true =  [ 1.0444313,  10.29601718, 40.52374309, 59.42754502,  5.28796299] #crashed once with these params
 #params_true = [2.0,12.0,40.0,60.0]
-#params_true = [1.4,12.0,89.8,60.0]
-low_limit = [1.0, 4.0, 0.0, 0.0]
-high_limit = [2.0, 18.0, 90.0, 90.0]
-stlow_limit = [1.3, 11.0, 30.0, 50.0]
-sthigh_limit = [1.5, 13.0, 50.0, 70.0]
+#params_true = [1.6,12.0,50.0,50.0]
+low_limit = [1.0, 4.0, 0.0, 0.0,1.0]
+high_limit = [2.0, 18.0, 90.0, 90.0,40.0]
+stlow_limit = [1.3, 11.0, 30.0, 50.0, 5.0]
+sthigh_limit = [1.5, 13.0, 50.0, 70.0, 15.0]
 #stlow_limit = np.copy(low_limit)
 #sthigh_limit = np.copy(high_limit)
-restart = False
+restart = True #False
 #restart_file = "res/B/oblsph_emcee.dat"
-restart_file = "res/B/oblobl_emcee.dat"
+restart_file = "emcee_res/oblobl_le_burst2_emcee.dat"#"res/B/oblobl_sp2_pb10_rphf_emcee.dat" #"res/B/oblobl_emcee.dat"
 
 
 def shift_phase(phi,shift):
-	phi = phi+shift
-	for t in range(len(phi)):
-		if(phi[t] > 1.0):
-			phi[t] = phi[t]-1.0
-		if(phi[t] < 0.0):
-			phi[t] = phi[t]+1.0
-	return phi
+	return (phi + shift) % 1 
 
-
-def shift(l, n):
-	return l[n:] + l[:n]
 
 def readdata():
-	PulsName='res/B/B0P2'
+	#PulsName='res/B/B0Prho10' #used in the old results
+	PulsName='pOS_pulses/lbb_rho10_sp2_f600_obl_burst2_dt'#'res/B/lbb_rho10_sp2_f600_obl_burst2_dt2_nrmr'
+	#PulsName='res/B/B0P2'
 	#PulsName='res/B/B0P1'
 	inFlux = open(PulsName+'FF.bin')
 	inphi = open(PulsName+'ff.bin')
@@ -89,14 +84,14 @@ def readdata():
 
 def compute_logl(phi,PA,PA_obs,phaseshift):
 
-	sigma_tot2 = 225.0#4.0#225.0#abs(PA[t])#1.0#PA+insigma**2+(0.005*PA)**2 #(error expected/guessed in PA)**2 = 15**2 = 225, or 2**2 = 4
+	sigma_tot2 = 4.0#225.0#abs(PA[t])#1.0#PA+insigma**2+(0.005*PA)**2 #(error expected/guessed in PA)**2 = 15**2 = 225, or 2**2 = 4
 	norm = 0.0#0.5*log(sigma_tot2)
 	phi_new = shift_phase(phi,phaseshift)
 	PA_interp = interp1d(phi_new,PA,fill_value = 'extrapolate')
 	PA_new = PA_interp(phi)
 	loglik = 0.0
 	insigma = 0.0
-	phase_factor = NPhase/NPhase_extp
+	phase_factor = int(NPhase/NPhase_extp)
 	for t in range(NPhase_extp):
 		loglik = loglik - (PA_new[t*phase_factor]-PA_obs[t*phase_factor])**2/(2.0*sigma_tot2)-norm
 	return loglik
@@ -175,11 +170,23 @@ def lnprob(modelpar, low_limit, high_limit):
 	rad = modelpar[1]
 	incl = modelpar[2]
 	theta = modelpar[3]
+	rho = modelpar[4]
+
+	sph = False
+
+	#Uncomment the following if want to use the non-rotating M&R as fitting parameters for oblate star
+	#if not sph:
+	#	#values for rotating star:
+	#	from mr_rot_nonrot import R_eq, M_obl #these assuming now that freq=600!
+	#	mass0, rad0 = mass, rad
+	#	rad = R_eq(mass0,rad0)
+	#	mass = M_obl(mass0,rad0)
 
 	if(mass/rad > 0.96*1.0/(2.95*1.52)): #checking causality                
 		return -np.inf
 
-	Flux = compf(mass,rad,incl,theta,spherical=False)#True)
+
+	Flux = compf(mass,rad,incl,theta,rho,spherical=sph)
 	#print(Flux)
 	phi,Flux_obs = readdata()
 
@@ -209,7 +216,7 @@ def lnprob(modelpar, low_limit, high_limit):
 
 	#find the best phaseshift and corresponding log-likelyhood:
 	phshift, loglikk = find_best_phshift(phi,PA,PA_obs_new)
-	if(phshift < 0.05 or phshift > 0.35):#print when phshift is clearly wrong
+	if(phshift < 0.11 or phshift > 0.49):#print when phshift is clearly wrong
 		print("Phshift: ",phshift)
 		print("With these parameters: ",modelpar)
 	##############################################
@@ -229,16 +236,16 @@ p0 = np.zeros((nwalkers,ndim))
 
 
 #test call to lnprob:
-start = time.time()
-#Originally a crash with these parameters:
-#params_true = [1.19815732, 16.3795289, 50.49372377, 63.26109383]
-cloglik = lnprob(params_true,low_limit,high_limit)
-print(cloglik)
-#print("chi^2/d.o.f.=",-1.0*cloglik/(NPhase-nparams))
-print("chi^2/d.o.f.=",-1.0*cloglik/(NPhase_extp-nparams))
-end = time.time()
-print ("Time spend for one fit: ")
-print(end - start)
+#start = time.time()
+##Originally a crash with these parameters:
+#params_true = [ 1.43880055, 17.33520256, 38.19160194, 64.39232485, 12.23075588]
+#cloglik = lnprob(params_true,low_limit,high_limit)
+#print(cloglik)
+##print("chi^2/d.o.f.=",-1.0*cloglik/(NPhase-nparams))
+#print("chi^2/d.o.f.=",-1.0*cloglik/(NPhase_extp-nparams))
+#end = time.time()
+#print ("Time spend for one fit: ")
+#print(end - start)
 #quit()
 
 jj = 0

@@ -21,7 +21,8 @@ spath = ""
 ndfiles = len(sys.argv)
 spaths = []
 if(ndfiles == 1):
-	print ("Error: Should give data files as input!")
+	print ("Error: Should give data files as input in command line:!")
+	print ("E.g.: 'python3 plot_emcee.py emcee_res/oblobl_le_burst2_'")
 	quit()
 #if(ndfiles == 2): #only one input file given
 #	print ("Outputs read from and saved in:")
@@ -52,17 +53,27 @@ weights_all = []
 #param_names = ["rad","mass","incl","theta","rho","dist","abb","gammaphot","scfrac","tplanck","logisg","nh","ipt","imt","mpr"]
 swapmr = True
 param_names = [
-         "$R_{\\mathrm{eq}}$ \n (km)",
-         "$M$ \n ($M_{\\odot}$)",
-         "$i$ \n (deg)",
-         "$\\theta$ \n (deg)",
+         #"$R_{\\mathrm{eq}}$ \n (km)",
+         #"$M$ \n ($M_{\\odot}$)",
+         #"$i$ \n (deg)",
+         #"$\\theta$ \n (deg)",
+         #"$\\rho$ \n (deg)"
+         "$R_{\\mathrm{e}}$ (km)",
+         #"$R_{0}$ (km)", #for non-rot R
+         "$M$ ($M_{\\odot}$)",
+         #"$M_{0}$ ($M_{\\odot}$)", #non-rot M
+         "$i$ (deg)",
+         "$\\theta$ (deg)",
+         "$\\rho$ (deg)"
 	 ]
 
-params_true = [12.0,1.4,40.0,60.0]
+params_true = [12.0,1.4,40.0,60.0,10.0]
 params = params_true
-low_limit = [4.0, 1.0, 20.0, 40.0]
-high_limit = [18.0, 2.0, 60.0, 80.0]
-ignore_walkers = [6,7,19]#[8,19]#[3,5,8]
+#low_limit = [4.0, 1.0, 20.0, 40.0,1.0]
+#high_limit = [18.0, 2.0, 60.0, 80.0,40.0]
+low_limit = [4.0, 1.0, 00.0, 0.0,1.0]
+high_limit = [18.0, 2.0, 90.0, 90.0,40.0]
+ignore_walkers = []#[2,6,18]#[6]#[6,7,19]#[8,19]#[3,5,8]
 
 
 ndim = len(params)
@@ -129,18 +140,137 @@ if(swapmr):
 	samples[:,0] = np.copy(samples_temp[:,1])
 	samples[:,1] = np.copy(samples_temp[:,0])
 
-if not(only_wmoves):
-	limits =  list(zip(low_limit,high_limit))
-	if(plot_cpoint):
-		print("quantiles=",)
-		for ipar in range(0,len(samples[0,:])):
-			qtls = corner.quantile(samples[:,ipar],(0.025,0.16,0.5,0.84,0.975))
-			print(qtls)
-		fig = corner.corner(samples,labels=param_names[0:npars],truths=params[0:npars],range=limits[0:npars], levels=(0.68,0.95,), 
-quantiles=(0.025,0.16,0.84,0.975),smooth=0.75,smooth1d=1.0)#,color="darkorange")
-	else:
-		fig = corner.corner(samples,labels=param_names[0:npars],range=limits[0:npars])#,color="darkorange")
 
+save_to_hdf5 = False#True
+if(save_to_hdf5):
+	import h5py
+	f = h5py.File(spath+"emcee_out", "w")
+	dset2 = f.create_dataset("markov_chain0/data/param_rad", data = samples[:,0])
+	dset2 = f.create_dataset("markov_chain0/data/param_mass", data = samples[:,1])
+	dset2 = f.create_dataset("markov_chain0/data/param_incl", data = samples[:,2])
+	dset2 = f.create_dataset("markov_chain0/data/param_theta_b0", data = samples[:,3])
+	dset2 = f.create_dataset("markov_chain0/data/param_rho_b0", data = samples[:,4])
+	dset2 = f.create_dataset("markov_chain0/data/mult", data = np.ones((len(samples[:,4]))))
+	#dset3 = f.create_dataset("spotarea", data = visz.spotarea)
+	#dset4 = f.create_dataset("obs_hit_angle", data = visz.obs_hit_angle)
+	#dset = f.create_dataset("pol_deg", (1,), dtype='f')
+	#dset[0] = pol_deg[t]
+
+
+if not(only_wmoves):
+	#limits =  list(zip(low_limit,high_limit))
+	#if(plot_cpoint):
+	#	print("quantiles=",)
+	#	for ipar in range(0,len(samples[0,:])):
+	#		qtls = corner.quantile(samples[:,ipar],(0.025,0.16,0.5,0.84,0.975))
+	#		print(qtls)
+	#	keywords = dict(fontsize = 21)#'xx-large')
+	#	fig = corner.corner(samples,labels=param_names[0:npars],label_kwargs=keywords,title_kwargs=keywords,truths=params[0:npars],range=limits[0:npars], levels=(0.68,0.95,), quantiles=(0.025,0.16,0.84,0.975),smooth=0.8,smooth1d=1.0)#,color="darkorange")
+	#else:
+	#	fig = corner.corner(samples,labels=param_names[0:npars],range=limits[0:npars])#,color="darkorange")
+
+
+	print_quantiles=True
+	if print_quantiles:
+		digits=[3,3,2,2,2]
+		for ipar in range(0,len(samples[0,:])):
+			idg = digits[ipar]
+			qtls = corner.quantile(samples[:,ipar],(0.025,0.16,0.5,0.84,0.975))
+			if(idg ==3):
+				qt1,qt2,qt3,qt4,qt5 = "{:.3g}".format(qtls[0]),"{:.3g}".format(qtls[1]),"{:.3g}".format(qtls[2]),"{:.3g}".format(qtls[3]),"{:.3g}".format(qtls[4])
+			else:
+                                qt1,qt2,qt3,qt4,qt5 = "{:.2g}".format(qtls[0]),"{:.2g}".format(qtls[1]),"{:.2g}".format(qtls[2]),"{:.2g}".format(qtls[3]),"{:.2g}".format(qtls[4])
+			if(ipar==0):
+				print("$\\req$ (km) & $"+qt1+"$ & $"+qt2+"$ & $"+qt3+"$ & $"+qt4+"$ & $"+qt5+"$ \\\\")
+			if(ipar==1):
+				print("$M$ ($\\msun$) & $"+qt1+"$ & $"+qt2+"$ & $"+qt3+"$ & $"+qt4+"$ & $"+qt5+"$ \\\\")
+			if(ipar==2):
+				print("$i$ ($\\deg$) & $"+qt1+"$ & $"+qt2+"$ & $"+qt3+"$ & $"+qt4+"$ & $"+qt5+"$ \\\\")
+			if(ipar==3):
+				print("$\\theta$ ($\\deg$) & $"+qt1+"$ & $"+qt2+"$ & $"+qt3+"$ & $"+qt4+"$ & $"+qt5+"$ \\\\")
+			if(ipar==4):
+				print("$\\rho$ ($\\deg$) & $"+qt1+"$ & $"+qt2+"$ & $"+qt3+"$ & $"+qt4+"$ & $"+qt5+"$ \\\\")
+
+
+
+        
+	lbfontsz = 25
+	lwidth= 2.0#1.5 
+	iphi = npars#5
+	limits =  zip(low_limit[0:iphi],high_limit[0:iphi])
+	plt.rcParams.update({'font.size': lbfontsz})
+	plt.rcParams.update({'axes.linewidth': lwidth})
+	plt.rcParams.update({'axes.labelsize': lbfontsz})
+	plt.rcParams.update({'axes.titlesize': lbfontsz})
+	plt.rcParams.update({'figure.figsize': [8.0, 6.0]}) #[8, 6] [8, 8] [10, 10] [6.4, 4.8]
+	plt.rcParams.update({'font.family': 'serif'})
+	#plt.rcParams.update({'font.serif': 'Times'})
+
+	plt.rcParams.update({'xtick.labelsize': lbfontsz})
+	plt.rcParams.update({'ytick.labelsize': lbfontsz})
+
+	plt.rcParams.update({'lines.linewidth': lwidth})
+
+
+	#plt.rcParams.update({'axes.labelpad': 20})
+	#plt.rcParams.update({'axes.titlepad': 20})
+
+	#print(rcParams.keys())
+	#exit()
+
+	fig = corner.corner(samples[:,0:iphi], verbose=True, labels=param_names, truths=params_true[0:iphi], range=limits, smooth=1.0, smooth1d=2.0,levels=(0.68,0.95,),max_n_ticks=3,top_ticks=False,fill_contours=True,plot_datapoints=False)#,color="darkorange")
+
+	#fig = corner.corner(samples[:,0:iphi], verbose=True, labels=param_names, truths=params_true[0:iphi], range=limits, smooth=1.3, smooth1d=1.0,levels=(0.68,0.95,),max_n_ticks=3,top_ticks=False,fill_contours=True,plot_datapoints=False)#,color="darkorange")#,truth_color="blue")#,contour_kwargs=ckwa) #color="red"
+	#,quantiles=[0.025,0.16,0.84,0.975]
+
+	plot_quantiles_my_self=True
+
+	fig.subplots_adjust(hspace=0)
+	fig.subplots_adjust(wspace=0)
+
+	ic = 0
+	ipar = 0
+	xlbpar = 0
+	#qtls = corner.quantile(samples[:,ipar],(0.025,0.16,0.5,0.84,0.975))
+
+	for ax in fig.get_axes():
+		ax.tick_params(axis='both', direction="in",length=6, width=lwidth,top=True,right=False)#,pad=14
+		
+		#if(ic>19):
+		#	ax.set_xlabel(param_names[xlbpar],labelpad=50)
+		#	xlbpar=xlbpar+1
+
+		if(ic%5!=0):
+			ax.tick_params(axis='y',left=False)
+		if(ic==0 or ic==6 or ic==12 or ic==18 or ic==24):
+			ax.tick_params(axis='y',right=True)
+
+		if(plot_quantiles_my_self):
+			if(ic==0 or ic==6 or ic==12 or ic==18 or ic==24):
+				print(ipar)
+				qtls = corner.quantile(samples[:,ipar],(0.025,0.16,0.84,0.975))
+				#ax.axvline(qtls[0],linestyle="dashed",color="magenta",linewidth=lwidth)
+				ax.axvline(qtls[0],linestyle="dashed",color="darkorange",linewidth=lwidth)
+				ax.axvline(qtls[1],linestyle="dashed",color="red",linewidth=lwidth)
+				ax.axvline(qtls[2],linestyle="dashed",color="red",linewidth=lwidth)
+				ax.axvline(qtls[3],linestyle="dashed",color="darkorange",linewidth=lwidth)
+				#ax.axvline(qtls[3],linestyle="dashed",color="magenta",linewidth=lwidth)
+				#print(qtls)
+				ipar = ipar+1
+
+				
+		ic = ic+1
+
+
+
+
+
+	#for ax in fig.get_axes():   
+	#	ax.tick_params(axis='both', labelsize=21)#14)
+	#	#ax.tick_params(axis='both', which='major', pad=45)
+	#fig.tight_layout()
+	#plot = fig.add_subplot(111)
+	#plot.tick_params(axis='both', which='major', labelsize=20)
 	if(ndfiles == 2):
 		fig.savefig(spath+"emcmc_triangleX.pdf")
 	else:
@@ -176,10 +306,16 @@ for ispa in range(0,ndfiles-1):
 	plt.suptitle("Param values as function of moves for separate walkers")
 
 	param_names = [
-		 "$R_{\\mathrm{eq}}$ \n (km)",
-		 "$M$ \n ($M_{\\odot}$)",
-		 "$i$ \n (deg)",
-		 "$\\theta$ \n (deg)",
+		 #"$R_{\\mathrm{eq}}$ \n (km)",
+		 #"$M$ \n ($M_{\\odot}$)",
+		 #"$i$ \n (deg)",
+		 #"$\\theta$ \n (deg)",
+		 #"$\\rho$ \n (deg)"
+		 "$R_{\\mathrm{eq}}$ (km)",
+		 "$M$ ($M_{\\odot}$)",
+		 "$i$ (deg)",
+		 "$\\theta$ (deg)",
+		 "$\\rho$ (deg)"
 		 ]
 
 	if(iweights):
